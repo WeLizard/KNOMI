@@ -6,18 +6,22 @@
 // #define MOONRAKER_DEBUG
 
 void lv_popup_warning(const char * warning, bool clickable);
+const char * path_only_gcode(const char * path);
 
 String MOONRAKER::send_request(const char * type, String path) {
     String ip = knomi_config.moonraker_ip;
     String port = knomi_config.moonraker_port;
     String url = "http://" + ip + ":" + port + path;
     String response = "";
+    if (ip.isEmpty() || port.isEmpty()) {
+        if (strcmp(type, "GET") == 0) unconnected = true;
+        return response;
+    }
     HTTPClient client;
     // replace all " " space to "%20" for http
     url.replace(" ", "%20");
     client.begin(url);
-    // set timeout to 60 seconds since some gcode like G28 need long time to feedback
-    client.setTimeout(60000);
+    client.setTimeout(strcmp(type, "GET") == 0 ? MOONRAKER_GET_TIMEOUT_MS : MOONRAKER_POST_TIMEOUT_MS);
     int code = client.sendRequest(type, "");
     // http request success
     if (code > 0) {
@@ -103,6 +107,59 @@ void MOONRAKER::get_printer_ready(void) {
     } else {
         unready = true;
         Serial.println("Empty: moonraker: get_printer_ready");
+    }
+}
+
+void MOONRAKER::get_status_objects(void) {
+    String response = send_request("GET", MOONRAKER_STATUS_QUERY);
+    if (response.isEmpty()) {
+        unready = true;
+        return;
+    }
+
+    DynamicJsonDocument json_parse(response.length() * 2);
+    if (deserializeJson(json_parse, response) != DeserializationError::Ok) {
+        unready = true;
+        Serial.println("Invalid: moonraker status response");
+        return;
+    }
+
+    JsonObject status = json_parse["result"]["status"];
+    String webhook_state = status["webhooks"]["state"].as<String>();
+    unready = webhook_state != "ready";
+    strlcpy(data.printer_state, webhook_state.c_str(), sizeof(data.printer_state));
+
+    JsonVariant macro = status["gcode_macro _KNOMI_STATUS"];
+    if (!macro.isNull()) {
+        data.homing = macro["homing"].as<bool>();
+        data.probing = macro["probing"].as<bool>();
+        data.qgling = macro["qgling"].as<bool>();
+        data.heating_nozzle = macro["heating_nozzle"].as<bool>();
+        data.heating_bed = macro["heating_bed"].as<bool>();
+        data.screen_on_valid = !macro["screen_on"].isNull();
+        if (data.screen_on_valid) data.screen_on = macro["screen_on"].as<bool>();
+    } else {
+        data.screen_on_valid = false;
+    }
+
+    JsonVariant display_status = status["display_status"];
+    if (!display_status.isNull()) {
+        String message = display_status["message"].as<String>();
+        strlcpy(data.display_message, message.c_str(), sizeof(data.display_message));
+    }
+
+    JsonVariant idle_timeout = status["idle_timeout"];
+    if (!idle_timeout.isNull()) {
+        String state = idle_timeout["state"].as<String>();
+        strlcpy(data.idle_timeout_state, state.c_str(), sizeof(data.idle_timeout_state));
+    }
+
+    JsonVariant virtual_sdcard = status["virtual_sdcard"];
+    if (!virtual_sdcard.isNull()) {
+        data.progress = (uint8_t)(virtual_sdcard["progress"].as<double>() * 100 + 0.5f);
+        String path = virtual_sdcard["file_path"].as<String>();
+        strlcpy(data.file_path, path_only_gcode(path.c_str()), sizeof(data.file_path) - 1);
+        data.file_path[sizeof(data.file_path) - 1] = 0;
     }
 }
 
@@ -201,16 +258,9 @@ void MOONRAKER::get_knomi_status(void) {
 
 void MOONRAKER::http_get_loop(void) {
     data_unlock = false;
-    get_printer_ready();
+    get_status_objects();
     if (!unready) {
-        // get_knomi_status() must before get_printer_info()
-        // avoid homing, qgling, etc action flag = 1
-        // but printing flag has not refresh
-        get_knomi_status();
         get_printer_info();
-        if (data.printing) {
-            get_progress();
-        }
     }
     data_unlock = true;
 }
@@ -237,7 +287,7 @@ void moonraker_task(void * parameter) {
         if (wifi_get_connect_status() == WIFI_STATUS_CONNECTED) {
             moonraker.http_get_loop();
         }
-        delay(200);
+        delay(MOONRAKER_POLL_INTERVAL_MS);
     }
 }
 

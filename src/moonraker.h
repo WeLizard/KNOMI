@@ -28,6 +28,11 @@ typedef struct {
     bool qgling;
     bool heating_nozzle;
     bool heating_bed;
+    bool screen_on;
+    bool screen_on_valid;
+    char printer_state[16];
+    char display_message[64];
+    char idle_timeout_state[16];
 } moonraker_data_t;
 
 #define QUEUE_LEN 5
@@ -53,6 +58,7 @@ class MOONRAKER {
     private:
         post_queue_t post_queue;
         void get_printer_ready(void);
+        void get_status_objects(void);
         void get_printer_info(void);
         void get_progress(void);
         void get_knomi_status(void);

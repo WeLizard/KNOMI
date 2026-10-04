@@ -71,14 +71,10 @@ void eeprom_init(void) {
         Serial.println("knomi_config from EEPROM");
         Serial.print("sta_ssid: ");
         Serial.println(knomi_config.sta_ssid);
-        Serial.print("sta_pwd: ");
-        Serial.println(knomi_config.sta_pwd);
         Serial.print("sta_auth: ");
         Serial.println(knomi_config.sta_auth);
         Serial.print("ap_ssid: ");
         Serial.println(knomi_config.ap_ssid);
-        Serial.print("ap_pwd: ");
-        Serial.println(knomi_config.ap_pwd);
         Serial.print("hostname: ");
         Serial.println(knomi_config.hostname);
         Serial.print("moonraker_ip: ");
@@ -123,9 +119,41 @@ void knomi_factory_reset(void) {
 
 
 static wifi_status_t wifi_status = WIFI_STATUS_INIT;
+static uint32_t wifi_next_reconnect_ms = 0;
 
 wifi_status_t wifi_get_connect_status(void) {
     return wifi_status;
+}
+
+static bool wifi_time_reached(uint32_t now, uint32_t deadline) {
+    return (int32_t)(now - deadline) >= 0;
+}
+
+static bool wifi_station_enabled(void) {
+    wifi_mode_t mode = wifi_get_mode_from_string(knomi_config.mode);
+    return mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA;
+}
+
+static void wifi_service_reconnect(void) {
+    if (!wifi_station_enabled() || knomi_config.sta_ssid[0] == 0) return;
+
+    if (WiFi.status() == WL_CONNECTED) {
+        wifi_status = WIFI_STATUS_CONNECTED;
+        wifi_next_reconnect_ms = 0;
+        return;
+    }
+
+    uint32_t now = millis();
+    if (wifi_next_reconnect_ms != 0 && !wifi_time_reached(now, wifi_next_reconnect_ms)) return;
+    if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) return;
+
+    Serial.println("WiFi disconnected, reconnecting...");
+    WiFi.setMinSecurity(knomi_config.sta_auth);
+    if (!WiFi.reconnect()) {
+        WiFi.begin(knomi_config.sta_ssid, knomi_config.sta_pwd);
+    }
+    wifi_status = WIFI_STATUS_CONNECTING;
+    wifi_next_reconnect_ms = now + WIFI_RECONNECT_INTERVAL_MS;
 }
 
 static p_function_t wifi_scan_refresh_callback = NULL;
@@ -167,14 +195,10 @@ void eeprom_write_knomi_config(void) {
     Serial.println("knomi_config Save to EEPROM");
     Serial.print("sta_ssid: ");
     Serial.println(knomi_config.sta_ssid);
-    Serial.print("sta_pwd: ");
-    Serial.println(knomi_config.sta_pwd);
     Serial.print("sta_auth: ");
     Serial.println(knomi_config.sta_auth);
     Serial.print("ap_ssid: ");
     Serial.println(knomi_config.ap_ssid);
-    Serial.print("ap_pwd: ");
-    Serial.println(knomi_config.ap_pwd);
     Serial.print("hostname: ");
     Serial.println(knomi_config.hostname);
     Serial.print("moonraker_ip: ");
@@ -249,8 +273,6 @@ restart:
             Serial.println("knomi_config_require: AP");
             Serial.print("ap ssid: ");
             Serial.println(knomi_config.ap_ssid);
-            Serial.print("ap pwd: ");
-            Serial.println(knomi_config.ap_pwd);
             WiFi.softAPConfig(ap_local_ip, ap_gateway, ap_subnet);
             if (WiFi.softAP(knomi_config.ap_ssid, knomi_config.ap_pwd)) {
                 Serial.print("ap ip: ");
@@ -277,8 +299,6 @@ restart:
             Serial.println();
             Serial.print("sta ssid: ");
             Serial.println(knomi_config.sta_ssid);
-            Serial.print("sta pwd: ");
-            Serial.println(knomi_config.sta_pwd);
             WiFi.setMinSecurity(knomi_config.sta_auth);
             wl_status_t n = WiFi.begin(knomi_config.sta_ssid, knomi_config.sta_pwd);  /*Connecting to Defined Access point*/
             wifi_status = WIFI_STATUS_CONNECTING;
@@ -286,6 +306,7 @@ restart:
             while (millis() < timeout) {
                 if (WiFi.status() == WL_CONNECTED) {
                     wifi_status = WIFI_STATUS_CONNECTED;
+                    wifi_next_reconnect_ms = 0;
                     break;
                 }
                 Serial.print(".");
@@ -331,6 +352,10 @@ restart:
 void wifi_task(void * parameter) {
 
     eeprom_init();
+#if WIFI_DISABLE_SLEEP
+    WiFi.setSleep(false);
+#endif
+    WiFi.setAutoReconnect(true);
     wifi_config_loop(true);
     WiFi.scanNetworks(true, false, true, 75U);
     webserver_setup();
@@ -343,13 +368,17 @@ void wifi_task(void * parameter) {
         switch (s) {
             case WL_CONNECTED:
                 wifi_status = WIFI_STATUS_CONNECTED;
+                wifi_next_reconnect_ms = 0;
                 break;
             case WL_NO_SSID_AVAIL:
+            case WL_CONNECT_FAILED:
             case WL_DISCONNECTED:
                 if (wifi_status == WIFI_STATUS_CONNECTED)
                     wifi_status = WIFI_STATUS_DISCONNECT;
                 break;
         }
+
+        wifi_service_reconnect();
 
         wifi_mode_t m = WiFi.getMode();
         if (m == WIFI_MODE_AP || m == WIFI_MODE_APSTA) {

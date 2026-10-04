@@ -16,6 +16,14 @@
 #define AP_SUBNET   IPAddress(255, 255, 255, 0) // subnet mask
 
 #define WIFI_STA_TIMEOUT 15000  // 15s
+#define WIFI_DISABLE_SLEEP 1
+#define WIFI_RECONNECT_INTERVAL_MS 5000UL
+
+#define MOONRAKER_POLL_INTERVAL_MS 1000UL
+#define MOONRAKER_GET_TIMEOUT_MS 5000UL
+#define MOONRAKER_POST_TIMEOUT_MS 60000UL
+#define MOONRAKER_STATUS_QUERY \
+    "/printer/objects/query?webhooks&gcode_macro%20_KNOMI_STATUS&virtual_sdcard&display_status&idle_timeout"
 
 // BTT red color for UI (RGB888)
 #define LV_32BIT_BTT_RED    0xC02F30
