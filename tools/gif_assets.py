@@ -5,9 +5,9 @@ Import("env")
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+project_dir = Path(env.subst("$PROJECT_DIR"))
+sys.path.insert(0, str(project_dir / "tools"))
 from gif_to_c import convert_directory
 
 
-project_dir = Path(env.subst("$PROJECT_DIR"))
 convert_directory(project_dir / "assets" / "gifs", project_dir / "src" / "gif")
