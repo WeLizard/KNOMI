@@ -1,0 +1,6 @@
+{
+    "idf.customExtraVars": {
+        "OPENOCD_SCRIPTS": "c:\\ESP\\.espressif\\tools\\openocd-esp32\\v0.10.0-esp32-20210401/openocd-esp32/share/openocd/scripts",
+        "IDF_CCACHE_ENABLE": "1"
+    }
+}

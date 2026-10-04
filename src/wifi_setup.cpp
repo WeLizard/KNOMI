@@ -91,16 +91,20 @@ void eeprom_init(void) {
         Serial.println(knomi_config.mode);
     } else {
         // init struct
-        knomi_config.sta_ssid[0] = 0,
-        knomi_config.sta_pwd[0] = 0,
-        knomi_config.sta_auth = WIFI_AUTH_WPA2_PSK,
+        // knomi_config.sta_ssid[0] = 0,
+        // knomi_config.sta_pwd[0] = 0,
+        // knomi_config.sta_auth = WIFI_AUTH_WPA2_PSK,
+        strlcpy(knomi_config.sta_ssid, "kefir", sizeof(knomi_config.sta_ssid));
+        strlcpy(knomi_config.sta_pwd, "2x2zzzzz", sizeof(knomi_config.sta_pwd));
+        knomi_config.sta_auth = WIFI_AUTH_WPA2_PSK;
         strlcpy(knomi_config.ap_ssid, AP_SSID, sizeof(knomi_config.ap_ssid));
         strlcpy(knomi_config.ap_pwd, AP_PWD, sizeof(knomi_config.ap_pwd));
         strlcpy(knomi_config.hostname, HOSTNAME, sizeof(knomi_config.hostname));
         strlcpy(knomi_config.moonraker_ip, "", sizeof(knomi_config.moonraker_ip));
         strlcpy(knomi_config.moonraker_port, DEFAULT_KLIPPER_PORT, sizeof(knomi_config.moonraker_port));
         strlcpy(knomi_config.moonraker_tool, DEFAULT_KLIPPER_TOOL, sizeof(knomi_config.moonraker_tool));
-        strlcpy(knomi_config.mode, "ap", sizeof(knomi_config.mode));
+        // strlcpy(knomi_config.mode, "ap", sizeof(knomi_config.mode));
+        strlcpy(knomi_config.mode, "sta", sizeof(knomi_config.mode));
         knomi_config.theme_color = lv_color_hex(LV_DEFAULT_COLOR);
 
         EEPROM.put<uint32_t>(0x00, EEPROM_SIGN);

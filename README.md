@@ -1,1 +1,1 @@
-# KNOMI1 and 2
+# KNOMI1
