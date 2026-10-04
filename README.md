@@ -30,3 +30,9 @@ it on printers that do not define it.
 
 - `upstream`: `bigtreetech/KNOMI`
 - `origin`: `WeLizard/KNOMI`
+
+## Official documentation
+
+- [KNOMI V1 manual](https://bigtreetech.github.io/docs/KNOMI.html)
+- [KNOMI V2 manual](https://bigtreetech.github.io/docs/KNOMI2.html)
+- [Upstream repository](https://github.com/bigtreetech/KNOMI)
